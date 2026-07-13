@@ -68,6 +68,12 @@ This plugin requires several changes to be able to work on Android devices. Plea
 
 8. Rebuild the app, as the above changes don't update with hot reload
 
+> **`EmbeddedPaymentElement`**: this widget depends on Jetpack Compose. The
+> `stripe_android` package brings its own `compose-compiler-gradle-plugin`
+> pinned to Kotlin 2.1.0. If your host app uses a different Kotlin version you
+> may need to align it, or apply the compose-compiler plugin yourself. See the
+> [`stripe_android` README](https://github.com/flutter-stripe/flutter_stripe/tree/main/packages/stripe_android#kotlin--compose-requirement).
+
 These changes are needed because the Android Stripe SDK requires the use of the AppCompat theme for their UI components and the Support Fragment Manager for the Payment Sheets
 
 If you are having troubles to make this package to work on Android, join [this discussion](https://github.com/flutter-stripe/flutter_stripe/discussions/538) to get some support.

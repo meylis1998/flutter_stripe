@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:stripe_example/screens/address_sheet/address_sheet.dart';
 import 'package:stripe_example/screens/customer_sheet/customer_sheet_screen.dart';
 import 'package:stripe_example/screens/others/can_add_to_wallet_screen.dart';
-import 'package:stripe_example/screens/payment_sheet/embedded/embedded_payment_element_screen.dart';
 import 'package:stripe_example/screens/payment_sheet/express_checkout/express_checkout_element.dart';
+import 'package:stripe_example/screens/payment_sheet/embedded_payment_element_screen.dart';
 import 'package:stripe_example/screens/payment_sheet/payment_element/payment_element.dart';
 import 'package:stripe_example/screens/payment_sheet/payment_sheet_deffered_screen.dart';
 import 'package:stripe_example/screens/payment_sheet/payment_sheet_screen.dart';
@@ -16,6 +16,7 @@ import 'package:stripe_example/screens/regional_payment_methods/cash_app_screen.
 import 'package:stripe_example/screens/regional_payment_methods/fpx_screen.dart';
 import 'package:stripe_example/screens/regional_payment_methods/ideal_screen.dart';
 import 'package:stripe_example/screens/regional_payment_methods/klarna_screen.dart';
+import 'package:stripe_example/screens/regional_payment_methods/multibanco_screen.dart';
 import 'package:stripe_example/screens/regional_payment_methods/p24_screen.dart';
 import 'package:stripe_example/screens/regional_payment_methods/paypal_screen.dart';
 import 'package:stripe_example/screens/regional_payment_methods/revolutpay_screen.dart';
@@ -130,7 +131,7 @@ class Example extends StatelessWidget {
         ),
         Example(
           title: 'Embedded Payment Element',
-          builder: (context) => EmbeddedPaymentElementScreen(),
+          builder: (c) => EmbeddedPaymentElementScreen(),
           platformsSupported: [DevicePlatform.android, DevicePlatform.ios],
         ),
         Example(
@@ -281,6 +282,12 @@ class Example extends StatelessWidget {
           title: 'Ideal',
           leading: Image.asset('assets/ideal_pay.png', width: 48),
           builder: (context) => IdealScreen(),
+        ),
+        Example(
+          title: 'Multibanco',
+          leading: SizedBox(),
+          builder: (context) => MultibancoScreen(),
+          platformsSupported: [DevicePlatform.android, DevicePlatform.ios],
         ),
         Example(
           title: 'Aubecs',

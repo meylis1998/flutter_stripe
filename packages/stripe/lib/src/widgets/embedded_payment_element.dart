@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -13,9 +15,8 @@ typedef PaymentOptionChangedCallback =
 typedef HeightChangedCallback = void Function(double height);
 
 /// Called when the embedded payment element fails to load.
-typedef LoadingFailedCallback = void Function(
-  EmbeddedPaymentElementLoadingException error,
-);
+typedef LoadingFailedCallback =
+    void Function(EmbeddedPaymentElementLoadingException error);
 
 /// Called when form sheet confirmation completes.
 typedef FormSheetConfirmCompleteCallback =
@@ -65,6 +66,7 @@ class EmbeddedPaymentElement extends StatefulWidget {
     this.onLoadingFailed,
     this.onFormSheetConfirmComplete,
     this.onRowSelectionImmediateAction,
+    this.loadingBuilder,
     super.key,
     this.androidPlatformViewRenderType =
         AndroidPlatformViewRenderType.expensiveAndroidView,
@@ -94,6 +96,15 @@ class EmbeddedPaymentElement extends StatefulWidget {
   /// Called when row selection triggers immediate action.
   final RowSelectionImmediateActionCallback? onRowSelectionImmediateAction;
 
+  /// Builds the widget shown while the element is loading, before it reports
+  /// its first measured height.
+  ///
+  /// Use this to match your app's loading conventions (a branded spinner, a
+  /// shimmer/skeleton, or nothing at all). The returned widget sizes the
+  /// loading area, so it is not clipped to a fixed height. When null, a
+  /// centered [CircularProgressIndicator] is shown.
+  final WidgetBuilder? loadingBuilder;
+
   /// Android platform view rendering mode.
   final AndroidPlatformViewRenderType androidPlatformViewRenderType;
 
@@ -111,6 +122,8 @@ class _EmbeddedPaymentElementState extends State<EmbeddedPaymentElement>
   }
 
   MethodChannel? _methodChannel;
+  Completer<Map<String, dynamic>?>? _pendingUpdate;
+  Completer<Map<String, dynamic>?>? _pendingConfirm;
   double _currentHeight = 0;
   bool _showPlatformView = true;
 
@@ -123,6 +136,11 @@ class _EmbeddedPaymentElementState extends State<EmbeddedPaymentElement>
         widget.intentConfiguration.confirmHandler!,
       );
     }
+    if (widget.intentConfiguration.confirmTokenHandler != null) {
+      Stripe.instance.setConfirmTokenHandler(
+        widget.intentConfiguration.confirmTokenHandler!,
+      );
+    }
   }
 
   @override
@@ -132,12 +150,31 @@ class _EmbeddedPaymentElementState extends State<EmbeddedPaymentElement>
     if (widget.intentConfiguration.confirmHandler != null) {
       Stripe.instance.setConfirmHandler(null);
     }
+    if (widget.intentConfiguration.confirmTokenHandler != null) {
+      Stripe.instance.setConfirmTokenHandler(null);
+    }
+    _pendingUpdate?.complete(null);
+    _pendingUpdate = null;
+    _pendingConfirm?.complete(null);
+    _pendingConfirm = null;
     super.dispose();
   }
 
   @override
   void didUpdateWidget(EmbeddedPaymentElement oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.intentConfiguration.confirmHandler !=
+        widget.intentConfiguration.confirmHandler) {
+      Stripe.instance.setConfirmHandler(
+        widget.intentConfiguration.confirmHandler,
+      );
+    }
+    if (oldWidget.intentConfiguration.confirmTokenHandler !=
+        widget.intentConfiguration.confirmTokenHandler) {
+      Stripe.instance.setConfirmTokenHandler(
+        widget.intentConfiguration.confirmTokenHandler,
+      );
+    }
     if (widget.controller != oldWidget.controller) {
       oldWidget.controller?.detach(this);
       controller.attach(this);
@@ -146,7 +183,26 @@ class _EmbeddedPaymentElementState extends State<EmbeddedPaymentElement>
 
   @override
   Future<Map<String, dynamic>?> confirm() async {
-    final result = await _methodChannel?.invokeMethod('confirm');
+    final channel = _methodChannel;
+    if (channel == null) return null;
+    if (widget.intentConfiguration.confirmHandler != null) {
+      Stripe.instance.setConfirmHandler(
+        widget.intentConfiguration.confirmHandler,
+      );
+    }
+    if (widget.intentConfiguration.confirmTokenHandler != null) {
+      Stripe.instance.setConfirmTokenHandler(
+        widget.intentConfiguration.confirmTokenHandler,
+      );
+    }
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      _completePendingConfirm({'status': 'canceled'});
+      final completer = Completer<Map<String, dynamic>?>();
+      _pendingConfirm = completer;
+      await channel.invokeMethod('confirm');
+      return completer.future;
+    }
+    final result = await channel.invokeMethod('confirm');
     if (result is Map) {
       return Map<String, dynamic>.from(result);
     }
@@ -177,6 +233,7 @@ class _EmbeddedPaymentElementState extends State<EmbeddedPaymentElement>
     try {
       switch (call.method) {
         case 'onPaymentOptionChanged':
+        case 'embeddedPaymentElementDidUpdatePaymentOption':
           final arguments = call.arguments as Map?;
           if (arguments != null) {
             final paymentOptionMap = Map<String, dynamic>.from(
@@ -193,6 +250,7 @@ class _EmbeddedPaymentElementState extends State<EmbeddedPaymentElement>
           }
           break;
         case 'onHeightChanged':
+        case 'embeddedPaymentElementDidUpdateHeight':
           final arguments = call.arguments as Map?;
           if (arguments != null) {
             final height = (arguments['height'] as num?)?.toDouble() ?? 0;
@@ -208,13 +266,20 @@ class _EmbeddedPaymentElementState extends State<EmbeddedPaymentElement>
           final error = _parseLoadingError(call.arguments);
           widget.onLoadingFailed?.call(error);
           break;
+        case 'embeddedPaymentElementUpdateComplete':
+          _completePendingUpdate(call.arguments);
+          break;
+        case 'onFormSheetConfirmComplete':
         case 'embeddedPaymentElementFormSheetConfirmComplete':
+        case 'onConfirmComplete':
           final arguments = call.arguments as Map?;
           if (arguments != null) {
             final result = Map<String, dynamic>.from(arguments);
+            _completePendingConfirm(result);
             widget.onFormSheetConfirmComplete?.call(result);
           }
           break;
+        case 'onRowSelectionImmediateAction':
         case 'embeddedPaymentElementRowSelectionImmediateAction':
           widget.onRowSelectionImmediateAction?.call();
           break;
@@ -222,6 +287,39 @@ class _EmbeddedPaymentElementState extends State<EmbeddedPaymentElement>
     } catch (e) {
       debugPrint('Error handling method call ${call.method}: $e');
     }
+  }
+
+  void _completePendingUpdate(dynamic payload) {
+    final completer = _pendingUpdate;
+    _pendingUpdate = null;
+    if (completer == null || completer.isCompleted) return;
+
+    completer.complete(
+      payload is Map ? Map<String, dynamic>.from(payload) : null,
+    );
+  }
+
+  void _completePendingConfirm(dynamic payload) {
+    final completer = _pendingConfirm;
+    _pendingConfirm = null;
+    if (completer == null || completer.isCompleted) return;
+
+    completer.complete(
+      payload is Map ? Map<String, dynamic>.from(payload) : null,
+    );
+  }
+
+  Map<String, dynamic> _intentConfigurationToJson(
+    IntentConfiguration intentConfiguration,
+  ) {
+    final intentConfigurationJson = intentConfiguration.toJson();
+    if (intentConfiguration.confirmHandler != null) {
+      intentConfigurationJson['confirmHandler'] = true;
+    }
+    if (intentConfiguration.confirmTokenHandler != null) {
+      intentConfigurationJson['confirmationTokenConfirmHandler'] = true;
+    }
+    return intentConfigurationJson;
   }
 
   EmbeddedPaymentElementLoadingException _parseLoadingError(dynamic payload) {
@@ -235,8 +333,8 @@ class _EmbeddedPaymentElementState extends State<EmbeddedPaymentElement>
         }
       }
 
-      var message = (map['localizedMessage'] as String?) ??
-          (map['message'] as String?);
+      var message =
+          (map['localizedMessage'] as String?) ?? (map['message'] as String?);
       final code = map['code'] as String?;
       final detailsRaw = map['details'];
       Map<String, dynamic>? details;
@@ -244,13 +342,14 @@ class _EmbeddedPaymentElementState extends State<EmbeddedPaymentElement>
         details = <String, dynamic>{};
         for (final entry in detailsRaw.entries) {
           if (entry.key is String) {
-            details![entry.key as String] = entry.value;
+            details[entry.key as String] = entry.value;
           } else {
-            details!['${entry.key}'] = entry.value;
+            details['${entry.key}'] = entry.value;
           }
         }
-        message ??= (details?['localizedMessage'] as String?) ??
-            (details?['message'] as String?);
+        message ??=
+            (details['localizedMessage'] as String?) ??
+            (details['message'] as String?);
       }
       message ??= 'Unknown error';
       return EmbeddedPaymentElementLoadingException(
@@ -270,8 +369,12 @@ class _EmbeddedPaymentElementState extends State<EmbeddedPaymentElement>
   Widget build(BuildContext context) {
     if (!_showPlatformView) return const SizedBox.shrink();
 
+    final intentConfiguration = _intentConfigurationToJson(
+      widget.intentConfiguration,
+    );
+
     final creationParams = <String, dynamic>{
-      'intentConfiguration': widget.intentConfiguration.toJson(),
+      'intentConfiguration': intentConfiguration,
       'configuration': widget.configuration.toJson(),
     };
 
@@ -295,31 +398,54 @@ class _EmbeddedPaymentElementState extends State<EmbeddedPaymentElement>
       );
     }
 
-    // Use a small placeholder height until the native element reports its
-    // measured height. Picking 400 here used to leave a large blank area
-    // before onHeightChanged fired.
-    final displayedHeight = _currentHeight > 0 ? _currentHeight : 60.0;
+    final isLoading = _currentHeight == 0;
+
     return AnimatedSize(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
       alignment: Alignment.topCenter,
-      child: SizedBox(
-        height: displayedHeight,
-        child: Stack(
-          children: [
-            Positioned.fill(child: platformView),
-            if (_currentHeight == 0)
-              const Center(
-                child: SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-          ],
-        ),
-      ),
+      child: isLoading
+          ? Stack(
+              children: [
+                // Keep the platform view mounted so it can initialize and
+                // report its height. The loading widget is the only
+                // non-positioned child, so it sizes the Stack.
+                Positioned.fill(child: platformView),
+                widget.loadingBuilder?.call(context) ??
+                    const _DefaultEmbeddedLoading(),
+              ],
+            )
+          : SizedBox(height: _currentHeight, child: platformView),
     );
+  }
+
+  @override
+  Future<Map<String, dynamic>?> update(
+    IntentConfiguration configuration,
+  ) async {
+    final channel = _methodChannel;
+    if (channel == null) {
+      return null;
+    }
+    final map = _intentConfigurationToJson(configuration);
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      final result = await channel.invokeMethod('update', {
+        'intentConfiguration': map,
+      });
+      return result is Map ? Map<String, dynamic>.from(result) : null;
+    }
+    _completePendingUpdate({'status': 'canceled'});
+    final completer = Completer<Map<String, dynamic>?>();
+    _pendingUpdate = completer;
+    try {
+      await channel.invokeMethod('update', {'intentConfiguration': map});
+    } catch (_) {
+      if (identical(_pendingUpdate, completer)) {
+        _pendingUpdate = null;
+      }
+      rethrow;
+    }
+    return completer.future;
   }
 }
 
@@ -410,6 +536,29 @@ class _UiKitEmbeddedPaymentElement extends StatelessWidget {
           creationParamsCodec: const StandardMessageCodec(),
           creationParams: creationParams,
           onPlatformViewCreated: onPlatformViewCreated,
+        ),
+      ),
+    );
+  }
+}
+
+/// Default loading indicator shown until the element reports its height.
+///
+/// [Center.heightFactor] keeps the widget's height bounded to its child, so it
+/// can size the loading area even when the surrounding constraints are
+/// unbounded (e.g. inside a scroll view).
+class _DefaultEmbeddedLoading extends StatelessWidget {
+  const _DefaultEmbeddedLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 24),
+      child: Center(
+        heightFactor: 1,
+        child: SizedBox.square(
+          dimension: 24,
+          child: CircularProgressIndicator(strokeWidth: 2),
         ),
       ),
     );
