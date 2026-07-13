@@ -49,13 +49,17 @@ class _LoadingButtonState extends State<LoadingButton> {
     try {
       await widget.onPressed!();
     } catch (e, s) {
+      // The error is already surfaced via the SnackBar below, and this handler
+      // is not awaited by the caller, so rethrowing would only produce an
+      // unhandled async error.
       log(e.toString(), error: e, stackTrace: s);
       scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error $e')));
-      rethrow;
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 }

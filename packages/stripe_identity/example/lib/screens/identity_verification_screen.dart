@@ -84,7 +84,13 @@ class _IdentityVerificationScreenState
         headers: {'Content-Type': 'application/json'},
       );
 
-      final data = jsonDecode(response.body);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception(
+          'Server returned ${response.statusCode}: ${response.body}',
+        );
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
 
       if (data['error'] != null) {
         throw Exception(data['error']);
