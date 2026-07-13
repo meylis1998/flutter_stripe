@@ -31,11 +31,9 @@ _SetupParameters _$SetupParametersFromJson(
       : PaymentSheetGooglePay.fromJson(
           json['googlePay'] as Map<String, dynamic>,
         ),
-  linkDisplayParams: json['linkDisplayParams'] == null
+  linkDisplayParams: json['link'] == null
       ? null
-      : LinkDisplayParams.fromJson(
-          json['linkDisplayParams'] as Map<String, dynamic>,
-        ),
+      : LinkDisplayParams.fromJson(json['link'] as Map<String, dynamic>),
   allowsDelayedPaymentMethods:
       json['allowsDelayedPaymentMethods'] as bool? ?? false,
   appearance: json['appearance'] == null
@@ -81,6 +79,10 @@ _SetupParameters _$SetupParametersFromJson(
       : CustomPaymentMethodConfiguration.fromJson(
           json['customPaymentMethodConfiguration'] as Map<String, dynamic>,
         ),
+  opensCardScannerAutomatically: json['opensCardScannerAutomatically'] as bool?,
+  termsDisplay: _termsDisplayFromJson(
+    json['termsDisplay'] as Map<String, dynamic>?,
+  ),
 );
 
 Map<String, dynamic> _$SetupParametersToJson(
@@ -98,7 +100,7 @@ Map<String, dynamic> _$SetupParametersToJson(
   'applePay': instance.applePay?.toJson(),
   'style': UserInterfaceStyleKey.toJson(instance.style),
   'googlePay': instance.googlePay?.toJson(),
-  'linkDisplayParams': instance.linkDisplayParams?.toJson(),
+  'link': instance.linkDisplayParams?.toJson(),
   'allowsDelayedPaymentMethods': instance.allowsDelayedPaymentMethods,
   'appearance': instance.appearance?.toJson(),
   'defaultBillingDetails': instance.billingDetails?.toJson(),
@@ -115,6 +117,8 @@ Map<String, dynamic> _$SetupParametersToJson(
   'cardFundingFiltering': instance.cardFundingFiltering?.toJson(),
   'customPaymentMethodConfiguration': instance.customPaymentMethodConfiguration
       ?.toJson(),
+  'opensCardScannerAutomatically': instance.opensCardScannerAutomatically,
+  'termsDisplay': _termsDisplayToJson(instance.termsDisplay),
 };
 
 const _$ThemeModeEnumMap = {
@@ -141,6 +145,8 @@ _IntentConfiguration _$IntentConfigurationFromJson(Map<String, dynamic> json) =>
       paymentMethodTypes: (json['paymentMethodTypes'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
+      paymentMethodConfigurationId:
+          json['paymentMethodConfigurationId'] as String?,
     );
 
 Map<String, dynamic> _$IntentConfigurationToJson(
@@ -148,6 +154,7 @@ Map<String, dynamic> _$IntentConfigurationToJson(
 ) => <String, dynamic>{
   'mode': instance.mode.toJson(),
   'paymentMethodTypes': instance.paymentMethodTypes,
+  'paymentMethodConfigurationId': instance.paymentMethodConfigurationId,
 };
 
 _PaymentMode _$PaymentModeFromJson(Map<String, dynamic> json) => _PaymentMode(
@@ -634,13 +641,11 @@ Map<String, dynamic> _$CardBrandAcceptanceDisallowedToJson(
 
 _LinkDisplayParams _$LinkDisplayParamsFromJson(Map<String, dynamic> json) =>
     _LinkDisplayParams(
-      linkDisplay: $enumDecode(_$LinkDisplayEnumMap, json['linkDisplay']),
+      linkDisplay: $enumDecode(_$LinkDisplayEnumMap, json['display']),
     );
 
 Map<String, dynamic> _$LinkDisplayParamsToJson(_LinkDisplayParams instance) =>
-    <String, dynamic>{
-      'linkDisplay': _$LinkDisplayEnumMap[instance.linkDisplay]!,
-    };
+    <String, dynamic>{'display': _$LinkDisplayEnumMap[instance.linkDisplay]!};
 
 const _$LinkDisplayEnumMap = {
   LinkDisplay.automatic: 'automatic',
@@ -740,8 +745,8 @@ Map<String, dynamic> _$RowConfigToJson(_RowConfig instance) =>
     <String, dynamic>{
       'style': _$RowStyleEnumMap[instance.style],
       'additionalInsets': instance.additionalInsets,
-      'flat': instance.flat,
-      'floating': instance.floating,
+      'flat': instance.flat?.toJson(),
+      'floating': instance.floating?.toJson(),
     };
 
 const _$RowStyleEnumMap = {
@@ -761,7 +766,7 @@ _EmbeddedPaymentElementAppearance _$EmbeddedPaymentElementAppearanceFromJson(
 
 Map<String, dynamic> _$EmbeddedPaymentElementAppearanceToJson(
   _EmbeddedPaymentElementAppearance instance,
-) => <String, dynamic>{'row': instance.row};
+) => <String, dynamic>{'row': instance.row?.toJson()};
 
 _CustomPaymentMethod _$CustomPaymentMethodFromJson(Map<String, dynamic> json) =>
     _CustomPaymentMethod(

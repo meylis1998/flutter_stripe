@@ -91,4 +91,20 @@ class EventEmitterCompat(
   fun emitOnCustomPaymentMethodConfirmHandlerCallback(value: ReadableMap?) {
     invoke("onCustomPaymentMethodConfirmHandlerCallback", value)
   }
+
+  fun emitPaymentMethodMessagingElementDidUpdateHeight(value: ReadableMap?) {
+    invoke("paymentMethodMessagingElementDidUpdateHeight", value)
+  }
+
+  fun emitPaymentMethodMessagingElementConfigureResult(value: ReadableMap?) {
+    invoke("paymentMethodMessagingElementConfigureResult", value)
+  }
+
+  fun emitOnCheckoutClientSecretRequested(value: ReadableMap?) {
+    invoke("onCheckoutClientSecretRequested", value)
+  }
+
+  fun emitCheckoutSessionDidChangeState(value: ReadableMap?) {
+    invoke("checkoutSessionDidChangeState", value)
+  }
 }

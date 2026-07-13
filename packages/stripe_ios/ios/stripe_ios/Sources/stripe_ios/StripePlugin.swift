@@ -40,6 +40,21 @@ func RCTMakeAndLogError(_ error: String, _ something: String?, _ anotherSomethin
 @objc(StripePlugin)
 class StripePlugin: StripeSdkImpl, FlutterPlugin, ViewManagerDelegate {
 
+    // Override with strong-backed computed properties so that the card field/form views
+    // are retained even when StripeSdkImpl declares them as `weak var` after a React Native
+    // sync. Without this, the views can be ARC-collected when the widget is unmounted
+    // (e.g. loading state), causing "Card details not complete" errors.
+    private var _cardFieldView: CardFieldView?
+    override var cardFieldView: CardFieldView? {
+        get { _cardFieldView }
+        set { _cardFieldView = newValue }
+    }
+
+    private var _cardFormView: CardFormView?
+    override var cardFormView: CardFormView? {
+        get { _cardFormView }
+        set { _cardFormView = newValue }
+    }
 
     private var channel: FlutterMethodChannel
 
@@ -49,6 +64,7 @@ class StripePlugin: StripeSdkImpl, FlutterPlugin, ViewManagerDelegate {
 
         let instance = StripePlugin(channel: channel)
         instance.emitter = instance
+        StripeSdkImpl.shared.emitter = instance
         registrar.addMethodCallDelegate(instance, channel: channel)
         registrar.addApplicationDelegate(instance)
 
@@ -71,6 +87,10 @@ class StripePlugin: StripeSdkImpl, FlutterPlugin, ViewManagerDelegate {
         // Addressheet
         let addressSheetFactory = AddressSheetViewFactory(messenger: registrar.messenger(), delegate: instance)
         registrar.register(addressSheetFactory, withId: "flutter.stripe/address_sheet")
+
+        // Embedded Payment Element
+        let embeddedPaymentElementFactory = EmbeddedPaymentElementViewFactory(messenger: registrar.messenger(), stripeSdk: instance)
+        registrar.register(embeddedPaymentElementFactory, withId: "flutter.stripe/embedded_payment_element")
 
     }
 
@@ -186,15 +206,16 @@ class StripePlugin: StripeSdkImpl, FlutterPlugin, ViewManagerDelegate {
             )
         case "confirmationTokenCreationCallback":
             guard let arguments = call.arguments as? FlutterMap,
-                  let res = arguments["result"] as? NSDictionary else {
+                  let res = arguments["params"] as? NSDictionary else {
                 result(FlutterError.invalidParams)
                 return
             }
-            return confirmationTokenCreationCallback(
+            confirmationTokenCreationCallback(
                 result: res,
                 resolver: resolver(for: result),
                 rejecter: rejecter(for: result)
             )
+            result(nil)
         case "clientSecretProviderCustomerSessionClientSecretCallback":
             guard let arguments = call.arguments as? FlutterMap,
                   let customerSessionClientSecretDict = arguments["customerSessionClientSecretJson"] as? NSDictionary else {
@@ -271,6 +292,11 @@ class StripePlugin: StripeSdkImpl, FlutterPlugin, ViewManagerDelegate {
             )
         case "handleNextActionForSetup":
             return handleNextActionForSetupIntent(call, result: result)
+        case "createRadarSession":
+            createRadarSession(resolver: resolver(for: result), rejecter: rejecter(for: result))
+        case "pollAndClearPendingStripeConnectUrls":
+            // No-op on iOS — returns empty list
+            result([String]())
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -296,8 +322,42 @@ class StripePlugin: StripeSdkImpl, FlutterPlugin, ViewManagerDelegate {
         }
     }
 
+    // Per-view channel overrides: events whose name starts with a registered
+    // prefix are redirected to the per-view channel instead of the global one.
+    // Guarded by `prefixChannelLock`; the value is a (prefix, channel) pair.
+    private static var prefixChannelLock = NSLock()
+    private static var prefixChannelMap: [String: FlutterMethodChannel] = [:]
+
+    static func registerChannel(_ channel: FlutterMethodChannel, forPrefix prefix: String) {
+        prefixChannelLock.lock()
+        defer { prefixChannelLock.unlock() }
+        prefixChannelMap[prefix] = channel
+    }
+
+    static func unregisterChannel(forPrefix prefix: String) {
+        prefixChannelLock.lock()
+        defer { prefixChannelLock.unlock() }
+        prefixChannelMap.removeValue(forKey: prefix)
+    }
+
     func sendEvent(withName name: String, body: [String:  Any]) {
-        channel.invokeMethod(name, arguments: body)
+        // Check for a per-view override before falling back to the global channel.
+        StripePlugin.prefixChannelLock.lock()
+        let overrideChannel: FlutterMethodChannel? = StripePlugin.prefixChannelMap.first(where: { name.hasPrefix($0.key) })?.value
+        StripePlugin.prefixChannelLock.unlock()
+
+        let target = overrideChannel ?? channel
+
+        // channel.invokeMethod must be called from the main thread. The
+        // confirmationTokenConfirmHandler (and similar async closures) run
+        // on Swift's cooperative thread pool, so we always hop to main here.
+        if Thread.isMainThread {
+            target.invokeMethod(name, arguments: body)
+        } else {
+            DispatchQueue.main.async {
+                target.invokeMethod(name, arguments: body)
+            }
+        }
     }
 
     func application(_ application: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
@@ -326,6 +386,14 @@ class StripePlugin: StripeSdkImpl, FlutterPlugin, ViewManagerDelegate {
 }
 
 extension StripePlugin: StripeSdkEmitter {
+    func emitPaymentMethodMessagingElementDidUpdateHeight(_ value: [String : Any]) {
+        self.sendEvent(withName: "paymentMethodMessagingElementDidUpdateHeight", body: value)
+    }
+    
+    func emitPaymentMethodMessagingElementConfigureResult(_ value: [String : Any]) {
+        self.sendEvent(withName: "paymentMethodMessagingElementConfigureResult", body: value)
+    }
+    
     func emitOnConfirmationTokenHandlerCallback(_ value: [String : Any]) {
         self.sendEvent(withName: "onConfirmationTokenHandlerCallback", body: value)
     }
@@ -403,6 +471,10 @@ extension StripePlugin: StripeSdkEmitter {
         self.sendEvent(withName: "embeddedPaymentElementLoadingFailed", body:value)
     }
 
+    func emitCheckoutSessionDidChangeState(_ value: [String : Any]) {
+        self.sendEvent(withName: "checkoutSessionDidChangeState", body: value)
+    }
+
 }
 
 
@@ -419,16 +491,9 @@ extension  StripePlugin {
 
     func initPaymentSheet(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard let arguments = call.arguments as? FlutterMap,
-              var params = arguments["params"] as? NSDictionary else {
+              let params = arguments["params"] as? NSDictionary else {
             result(FlutterError.invalidParams)
             return
-        }
-        if (params.object(forKey: "intentConfiguration") != nil && params.object(forKey: "intentConfiguration") is NSDictionary) {
-            let mutable = (params["intentConfiguration"] as! NSDictionary).mutableCopy() as! NSMutableDictionary
-            mutable["confirmHandler"] = true;
-            let adjusted = params.mutableCopy() as! NSMutableDictionary
-            adjusted["intentConfiguration"] = mutable
-            params = adjusted
         }
         initPaymentSheet(params: params, resolver: resolver(for: result), rejecter: rejecter(for: result))
     }
@@ -825,7 +890,11 @@ extension  StripePlugin {
             return
         }
 
-        intentCreationCallback(result: params, resolver: resolver(for: result), rejecter: rejecter(for: result))
+        intentCreationCallback(
+            result: params,
+            resolver: resolver(for: result),
+            rejecter: rejecter(for: result)
+        )
         result(nil)
     }
 

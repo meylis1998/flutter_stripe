@@ -154,14 +154,16 @@ abstract class StripePlatform extends PlatformInterface {
   Future<SetupIntent> retrieveSetupIntent(String clientSecret);
   Future<String> createTokenForCVCUpdate(String cvc);
 
+  Future<RadarSession> createRadarSession();
+
   /// Methods related to ACH payments
-  Future<PaymentIntent> collectBankAccount({
+  Future<CollectBankAccountResult> collectBankAccount({
     required bool isPaymentIntent,
     required String clientSecret,
     required CollectBankAccountParams params,
   });
 
-  Future<PaymentIntent> verifyPaymentIntentWithMicrodeposits({
+  Future<CollectBankAccountResult> verifyPaymentIntentWithMicrodeposits({
     required bool isPaymentIntent,
     required String clientSecret,
     required VerifyMicroDepositsParams params,
@@ -195,6 +197,18 @@ abstract class StripePlatform extends PlatformInterface {
   Future<void> confirmationTokenCreationCallback(
     IntentCreationCallbackParams params,
   );
+
+  /// Retrieve and clear any pending Stripe Connect deep link URLs.
+  ///
+  /// Returns stripe-connect:// URLs captured natively on Android since the
+  /// last poll.
+  Future<List<String>> pollAndClearPendingStripeConnectUrls();
+
+  /// Set the confirm handler for embedded payment elements
+  void setConfirmHandler(ConfirmHandler? handler);
+
+  /// Set the confirmation token handler for embedded payment elements
+  void setConfirmTokenHandler(ConfirmTokenHandler? handler);
 
   Widget buildCard({
     Key? key,

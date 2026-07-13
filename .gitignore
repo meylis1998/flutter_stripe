@@ -63,3 +63,9 @@ lcov.info
 /test-results/
 /playwright-report/
 /playwright/.cache/
+
+# claude AI
+.claude/
+
+# FVM Version Cache
+.fvm/

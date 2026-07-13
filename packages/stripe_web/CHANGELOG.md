@@ -1,3 +1,31 @@
+## 8.1.0
+
+**Fixes**:
+- Element Remounting Fix: Resolved an issue causing an infinite spinner when an ExpressCheckoutElement instance remounted by ensuring a unique view type per instance. (#2405, #2439)
+
+## 8.0.0
+
+ **Breaking Changes**
+
+  - `collectBankAccountForPayment` and `verifyPaymentIntentWithMicrodeposits` now return `CollectBankAccountResult` (a sealed class) instead of `PaymentIntent`. Update any code that assigns or pattern-matches the return value. (#2395)
+
+  **Features**
+  - **Sync with Stripe React Native v0.66.0** — Aligned iOS and Android native bridges with the upstream React Native SDK v0.66.0. (#2421)
+
+  **Fixes**
+  - Fixed crash in `_handleCardChanged` when the native layer sends a wrapped `{card: {...}}` payload instead of flat card fields. Both shapes are now handled. (#2265)
+  - Fixed `confirmPaymentSheetPayment` not triggering the token creation handler registered via `onCreatePaymentMethod`. (#2400)
+
+  **Removed**
+
+  - UPI payment method has been removed following its removal from the Stripe React Native SDK.
+
+## 7.6.0
+- stability improvements
+
+## 7.5.0
+- Update bindings
+
 ## 7.4.0
 **Features**
 - Add WASM support

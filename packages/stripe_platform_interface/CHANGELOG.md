@@ -1,8 +1,55 @@
+## 13.1.0
+
+**Features**:
+- Embedded Payment Element: Added official support for updating the EmbeddedPaymentElement. (#2427)
+
+**Fixes**:
+- Fixed Build Failures: Resolved an issue where iOS builds would fail on Flutter versions earlier than 3.41.0 due to a missing FlutterFramework dependency. (#2425)
+- Embedded Payment Element Fix: Fixed an issue where the EmbeddedPaymentElement failed to load on iOS because the merchantIdentifier could not be found. (#2426)
+- Element Remounting Fix: Resolved an issue causing an infinite spinner when an ExpressCheckoutElement instance remounted by ensuring a unique view type per instance. (#2405, #2439)
+- Google Pay Fix: Fixed an issue where isPlatformPaySupported would not work properly when used with existingPaymentMethodRequired. (#2245)
+
+## 13.0.0
+
+ **Breaking Changes**
+
+  - `collectBankAccountForPayment` and `verifyPaymentIntentWithMicrodeposits` now return `CollectBankAccountResult` (a sealed class) instead of `PaymentIntent`. Update any code that assigns or pattern-matches the return value. (#2395)
+
+  **Features**
+
+  - **EmbeddedPaymentElement** — Full Flutter widget support for the embedded payment element on iOS and Android. The new `EmbeddedPaymentElement` widget renders inline in your layout (no bottom sheet). Use `EmbeddedPaymentElementController` to call `confirm()`, which now returns a payment result so failures (declined card, insufficient funds, etc.) can be detected directly without relying solely on callbacks. Available callbacks: `onHeightChanged`, `onPaymentOptionChanged`, `onLoadingFailed`, `onRowSelectionImmediateAction`, `onFormSheetConfirmComplete`. (#2239)
+  - **Multibanco** — Added Multibanco as a supported payment method following the sync with Stripe React Native v0.66.0. (#2421)
+  - **Sync with Stripe React Native v0.66.0** — Aligned iOS and Android native bridges with the upstream React Native SDK v0.66.0. (#2421)
+
+  **Fixes**
+
+  - Fixed `collectBankAccountForPayment` and `verifyPaymentIntentWithMicrodeposits` crashing when the native SDK returns a setup intent instead of a payment intent. (#2395)
+  - Fixed crash in `_handleCardChanged` when the native layer sends a wrapped `{card: {...}}` payload instead of flat card fields. Both shapes are now handled. (#2265)
+  - Fixed `confirmPaymentSheetPayment` not triggering the token creation handler registered via `onCreatePaymentMethod`. (#2400)
+  - Fixed `LinkDisplayParams` serialization — Dart field names were not matching the `link` / `display` keys expected by native iOS and Android, causing Link display configuration to be silently ignored. (#2407)
+  - iOS: Added `FlutterFramework` as an explicit SPM dependency in `stripe_ios` to fix Swift Package Manager resolution. (#2420)
+
+  **Removed**
+
+  - UPI payment method has been removed following its removal from the Stripe React Native SDK.
+
+## 12.6.0
+
+**Features**:
+
+- added createRadarSession to support stripe radar sessions
+
+**Fixes**:
+
+- Bumped compile SDK android to sdk 36
+- iOS card details not complete issue on cardfield
+- #2385: correct termsDisplay type to Map<String, TermsDisplay>
+
+## 12.5.0
+**Features**:
+- Sync with Stripe React Native [0.61.0](https://github.com/stripe/stripe-react-native/releases/tag/v0.61.0)
+
 ## 12.4.0
-
-**Features**
-- Add WASM support
-
 **Fixes**
 - #2347: Fix card details not complete for dangerously update card details
 - #2350: Fix invalid methodcall on Android for cardfield
@@ -13,9 +60,11 @@
 - Sync with Stripe React Native [0.58.0](https://github.com/stripe/stripe-react-native/releases/tag/v0.58.0) 
 
 **Fixes**
-- #2332 Google Pay not appear on the PaymentSheet
-- #2314 Card details not complete error when using dangerouslyUpdateCardDetails
-- #2307 Paymentsheet card not focusable when tapping middle or bottom of the field.
+- #2332 Android: Google Pay not appear on the PaymentSheet
+- #2321 Android: Wrap context with AppCompat theme for Google Pay button.
+- #2320 Android: add ProGuard rules to prevent 3D Secure crash.
+- #2314 Android: Card details not complete error when using dangerouslyUpdateCardDetails
+- #2307 Android: Paymentsheet card not focusable when tapping middle or bottom of the field.
 
 ## 12.2.0
 
@@ -38,13 +87,19 @@
 
 **Fixes**
  - 2064 crash collect bankaccounttoken
-
+ 
 ## 12.1.0
 
 **Features**
 - Sync with Stripe React Native [0.53.1](https://github.com/stripe/stripe-react-native/releases/tag/v0.53.1)
 - Add support for billie payment
 - Add config params paymentsheet
+
+## 12.0.2
+- fix compilation issue with the stripe_ios package when using SPM
+
+## 12.0.1
+- fix compilation issue with the stripe_android package
 
 ## 12.0.0
 
@@ -54,7 +109,7 @@
 - Remove Sofort payment method as Stripe does not support it anymore
 
 **Features**
-- Paymentsheet now supports linkdisplay parameters
+- Paymentsheet now supports link display parameters
 - Paymentsheet can now be configured with a map of paymentmethods for future usage
 
 **Fixes**
@@ -63,6 +118,9 @@
  - #2176 support Klarna on the web
  - #2005 card details not supported on android
  - #2180 collect bank account token failing due to missing parameter
+
+## 11.5.1
+- retain compatibility with older Flutter versions #2132
 
 ## 11.5.0
 Align with Stripe React Native [0.43.0](https://github.com/stripe/stripe-react-native/releases/tag/v0.43.0):

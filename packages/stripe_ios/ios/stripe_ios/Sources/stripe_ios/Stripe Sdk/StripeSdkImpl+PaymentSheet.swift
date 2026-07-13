@@ -6,7 +6,7 @@
 //
 
 import Foundation
-@_spi(ExperimentalAllowsRemovalOfLastSavedPaymentMethodAPI) @_spi(CustomerSessionBetaAccess) @_spi(EmbeddedPaymentElementPrivateBeta) @_spi(STP) @_spi(PaymentMethodOptionsSetupFutureUsagePreview) @_spi(CustomPaymentMethodsBeta) @_spi(ConfirmationTokensPublicPreview) @_spi(CardFundingFilteringPrivatePreview) import StripePaymentSheet
+@_spi(ExperimentalAllowsRemovalOfLastSavedPaymentMethodAPI) @_spi(STP) @_spi(PaymentMethodOptionsSetupFutureUsagePreview) @_spi(CustomPaymentMethodsBeta) @_spi(ConfirmationTokensPublicPreview) @_spi(CardFundingFilteringPrivatePreview) import StripePaymentSheet
 
 extension StripeSdkImpl {
     internal func buildPaymentSheetConfiguration(
@@ -122,6 +122,10 @@ extension StripeSdkImpl {
             configuration.allowsRemovalOfLastSavedPaymentMethod = allowsRemovalOfLastSavedPaymentMethod
         }
 
+        if let opensCardScannerAutomatically = params["opensCardScannerAutomatically"] as? Bool {
+            configuration.opensCardScannerAutomatically = opensCardScannerAutomatically
+        }
+
         if let paymentMethodOrder = params["paymentMethodOrder"] as? [String] {
             configuration.paymentMethodOrder = paymentMethodOrder
         }
@@ -146,6 +150,10 @@ extension StripeSdkImpl {
             from: customPaymentMethodConfig,
             sdkImpl: self
           )
+        }
+
+        if let termsDisplay = StripeSdkImpl.mapToTermsDisplay(params: params) {
+            configuration.termsDisplay = termsDisplay
         }
 
         return (nil, configuration)
@@ -175,7 +183,23 @@ extension StripeSdkImpl {
             }
         }
 
-        if let paymentIntentClientSecret = params["paymentIntentClientSecret"] as? String {
+        if let checkout = params["checkout"] as? NSDictionary,
+          let sessionKey = checkout["sessionKey"] as? String {
+            guard let checkout = checkoutInstances[sessionKey] else {
+                resolve(Errors.createError(ErrorType.Failed, "Checkout session not found"))
+                return
+            }
+
+            if params["customFlow"] as? Bool == true {
+                PaymentSheet.FlowController.create(checkout: checkout,
+                                                   configuration: configuration) { [weak self] result in
+                    handlePaymentSheetFlowControllerResult(result: result, stripeSdk: self)
+                }
+            } else {
+                self.paymentSheet = PaymentSheet(checkout: checkout, configuration: configuration)
+                resolve([])
+            }
+        } else if let paymentIntentClientSecret = params["paymentIntentClientSecret"] as? String {
             if !Errors.isPIClientSecretValid(clientSecret: paymentIntentClientSecret) {
                 resolve(Errors.createError(ErrorType.Failed, "`secret` format does not match expected client secret formatting."))
                 return
@@ -475,6 +499,27 @@ extension StripeSdkImpl {
         default:
             return .automatic
         }
+    }
+
+    internal static func mapToTermsDisplay(params: NSDictionary) -> [STPPaymentMethodType: PaymentSheet.TermsDisplay]? {
+        guard let termsDisplayDict = params["termsDisplay"] as? [String: String] else {
+            return nil
+        }
+
+        var result: [STPPaymentMethodType: PaymentSheet.TermsDisplay] = [:]
+        for (code, value) in termsDisplayDict {
+            let paymentMethodType = STPPaymentMethodType.fromIdentifier(code)
+            let termsDisplay: PaymentSheet.TermsDisplay? = switch value {
+            case "never": .never
+            case "automatic": .automatic
+            default: nil
+            }
+            if paymentMethodType != .unknown, let termsDisplay {
+                result[paymentMethodType] = termsDisplay
+            }
+        }
+
+        return result.isEmpty ? nil : result
     }
 
     internal static func mapToLinkDisplay(value: String?) -> PaymentSheet.LinkConfiguration.Display {

@@ -15,9 +15,6 @@
 
 package com.reactnativestripesdk;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-
 import com.facebook.proguard.annotations.DoNotStrip;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -32,6 +29,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 public abstract class NativeStripeSdkModuleSpec extends ReactContextBaseJavaModule implements TurboModule {
   public static final String NAME = "StripeSdk";
@@ -143,7 +142,8 @@ public abstract class NativeStripeSdkModuleSpec extends ReactContextBaseJavaModu
     Map<String, Object> constants = getTypedExportedConstants();
     if (ReactBuildConfig.DEBUG || ReactBuildConfig.IS_INTERNAL_BUILD) {
       Set<String> obligatoryFlowConstants = new HashSet<>(Arrays.asList(
-          "API_VERSIONS"
+          "API_VERSIONS",
+          "SYSTEM_INFO"
       ));
       Set<String> optionalFlowConstants = new HashSet<>();
       Set<String> undeclaredConstants = new HashSet<>(constants.keySet());
@@ -255,6 +255,10 @@ public abstract class NativeStripeSdkModuleSpec extends ReactContextBaseJavaModu
 
   @ReactMethod
   @DoNotStrip
+  public abstract void createEmbeddedPaymentElementWithCheckout(String sessionKey, ReadableMap configuration, Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
   public abstract void confirmEmbeddedPaymentElement(double viewTag, Promise promise);
 
   @ReactMethod
@@ -263,7 +267,15 @@ public abstract class NativeStripeSdkModuleSpec extends ReactContextBaseJavaModu
 
   @ReactMethod
   @DoNotStrip
+  public abstract void updateEmbeddedPaymentElementWithCheckout(String sessionKey, Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
   public abstract void clearEmbeddedPaymentOption(double viewTag, Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
+  public abstract void createRadarSession(Promise promise);
 
   @ReactMethod
   @DoNotStrip
@@ -272,6 +284,58 @@ public abstract class NativeStripeSdkModuleSpec extends ReactContextBaseJavaModu
   @ReactMethod
   @DoNotStrip
   public abstract void openAuthenticatedWebView(String id, String url, Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
+  public abstract void downloadAndShareFile(String url, @Nullable String filename, Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
+  public abstract void authWebViewDeepLinkHandled(String id, Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
+  public abstract void storeStripeConnectDeepLink(String url, Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
+  public abstract void pollAndClearPendingStripeConnectUrls(Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
+  public abstract void initCheckoutSession(String clientSecret, ReadableMap configuration, Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
+  public abstract void checkoutUpdateShippingAddress(String sessionKey, ReadableMap address, @Nullable String name, @Nullable String phone, Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
+  public abstract void checkoutUpdateBillingAddress(String sessionKey, ReadableMap address, @Nullable String name, @Nullable String phone, Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
+  public abstract void checkoutApplyPromotionCode(String sessionKey, String code, Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
+  public abstract void checkoutRemovePromotionCode(String sessionKey, Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
+  public abstract void checkoutUpdateLineItemQuantity(String sessionKey, String lineItemId, double quantity, Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
+  public abstract void checkoutSelectShippingOption(String sessionKey, String id, Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
+  public abstract void checkoutRunServerUpdateStart(String sessionKey, Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
+  public abstract void checkoutRunServerUpdateComplete(String sessionKey, @Nullable String error, Promise promise);
 
   @ReactMethod
   @DoNotStrip

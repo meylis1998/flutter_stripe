@@ -2,11 +2,13 @@ package com.reactnativestripesdk
 
 import com.facebook.react.bridge.ReadableMap
 import com.reactnativestripesdk.utils.PaymentSheetException
+import com.reactnativestripesdk.utils.forEachKey
 import com.reactnativestripesdk.utils.getBooleanOr
 import com.reactnativestripesdk.utils.getIntOr
 import com.reactnativestripesdk.utils.getLongOr
 import com.reactnativestripesdk.utils.getStringList
 import com.reactnativestripesdk.utils.isEmpty
+import com.stripe.android.model.PaymentMethod
 import com.stripe.android.paymentelement.PaymentMethodOptionsSetupFutureUsagePreview
 import com.stripe.android.paymentsheet.CardFundingFilteringPrivatePreview
 import com.stripe.android.paymentsheet.PaymentSheet
@@ -76,6 +78,24 @@ private fun mapStringToLinkDisplay(value: String?): PaymentSheet.LinkConfigurati
     "never" -> PaymentSheet.LinkConfiguration.Display.Never
     else -> PaymentSheet.LinkConfiguration.Display.Automatic
   }
+
+internal fun mapToTermsDisplay(params: ReadableMap?): Map<PaymentMethod.Type, PaymentSheet.TermsDisplay>? {
+  val termsDisplayMap = params?.getMap("termsDisplay") ?: return null
+  val result = mutableMapOf<PaymentMethod.Type, PaymentSheet.TermsDisplay>()
+  termsDisplayMap.forEachKey { code ->
+    val paymentMethodType = PaymentMethod.Type.fromCode(code)
+    val termsDisplay =
+      when (termsDisplayMap.getString(code)) {
+        "never" -> PaymentSheet.TermsDisplay.NEVER
+        "automatic" -> PaymentSheet.TermsDisplay.AUTOMATIC
+        else -> null
+      }
+    if (paymentMethodType != null && termsDisplay != null) {
+      result[paymentMethodType] = termsDisplay
+    }
+  }
+  return result.ifEmpty { null }
+}
 
 private val mapIntToButtonType =
   mapOf(
@@ -166,7 +186,9 @@ internal fun buildBillingDetails(map: ReadableMap?): PaymentSheet.BillingDetails
   )
 }
 
-internal fun buildBillingDetailsCollectionConfiguration(map: ReadableMap?): PaymentSheet.BillingDetailsCollectionConfiguration =
+internal fun buildBillingDetailsCollectionConfiguration(
+  map: ReadableMap?
+): PaymentSheet.BillingDetailsCollectionConfiguration =
   PaymentSheet.BillingDetailsCollectionConfiguration(
     name = mapToCollectionMode(map?.getString("name")),
     phone = mapToCollectionMode(map?.getString("phone")),
@@ -183,7 +205,9 @@ internal fun mapToCollectionMode(str: String?): PaymentSheet.BillingDetailsColle
     else -> PaymentSheet.BillingDetailsCollectionConfiguration.CollectionMode.Automatic
   }
 
-internal fun mapToAddressCollectionMode(str: String?): PaymentSheet.BillingDetailsCollectionConfiguration.AddressCollectionMode =
+internal fun mapToAddressCollectionMode(
+  str: String?
+): PaymentSheet.BillingDetailsCollectionConfiguration.AddressCollectionMode =
   when (str) {
     "automatic" ->
       PaymentSheet.BillingDetailsCollectionConfiguration.AddressCollectionMode.Automatic
